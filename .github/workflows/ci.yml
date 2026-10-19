@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: huellitas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/huellitas
+      JWT_SECRET: test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cargar esquema y datos
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d huellitas -f db/01-schema.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d huellitas -f db/02-seed.sql
+      - name: Instalar dependencias del backend
+        working-directory: backend
+        run: npm install
+      - name: Ejecutar pruebas
+        working-directory: backend
+        run: npm test
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar y construir
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
